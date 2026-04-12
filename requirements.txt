@@ -1,1 +1,10 @@
 
+# Reinforcement Learning and ML
+torch
+numpy
+
+# Optional utilities
+matplotlib
+
+# Interface (Python side)
+pybind11
