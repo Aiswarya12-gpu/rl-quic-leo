@@ -1,0 +1,22 @@
+1. WHERE THIS CONNECTS IN OMNeT++
+
+code:
+Inside your QUIC congestion control:
+
+RLAgent rl;
+
+double action = rl.get_action(rtt, loss, throughput);
+
+pacingRate = pacingRate * (1 + action);
+
+
+
+
+ 2. CONTROL LOOP (VERY IMPORTANT)
+code:
+
+if (simTime() - lastUpdate >= 0.1) {  // 100 ms
+    double action = rl.get_action(rtt, loss, throughput);
+    pacingRate *= (1 + action);
+    lastUpdate = simTime();
+}
