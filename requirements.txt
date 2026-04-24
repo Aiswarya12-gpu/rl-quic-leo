@@ -1,10 +1,46 @@
+# ===============================
+# RL-QUIC-LEO REQUIREMENTS
+# ===============================
 
-# Reinforcement Learning and ML
-torch
-numpy
+# -------------------------------
+# Python Dependencies (RL Agent)
+# -------------------------------
+torch>=2.0.0
+numpy>=1.23
+matplotlib>=3.7
 
-# Optional utilities
-matplotlib
+# -------------------------------
+# C++ / Python Interface
+# -------------------------------
+pybind11>=2.10
 
-# Interface (Python side)
-pybind11
+# -------------------------------
+# Simulation Environment (MANUAL INSTALL)
+# -------------------------------
+# NOTE: These are NOT pip-installable.
+# They must be installed separately.
+
+# OMNeT++ Simulator
+# Version: 6.0 / 6.0.2 / 6.2 (recommended)
+# https://omnetpp.org/
+
+# INET Framework
+# Version: 4.3 / 4.4 / 4.5 (tested compatibility)
+# https://inet.omnetpp.org/
+
+# FloRaSat Extension
+# LEO satellite simulation support
+# https://github.com/florasat (or local installation)
+
+# -------------------------------
+# System Requirements
+# -------------------------------
+# Linux (Ubuntu 20.04 / 22.04 recommended)
+# GCC >= 9
+# Python >= 3.8
+
+# -------------------------------
+# Optional (for data processing)
+# -------------------------------
+pandas>=1.5
+scipy>=1.10
