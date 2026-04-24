@@ -1,94 +1,86 @@
-
 # RL-Based QUIC Congestion Control in LEO Satellite Networks
 
 ## Overview
 
-This repository presents a system-level study on improving QUIC congestion control using Reinforcement Learning (RL) in Low Earth Orbit (LEO) satellite networks.
+This repository presents a system-level study on improving QUIC congestion control using reinforcement learning (RL) in Low Earth Orbit (LEO) satellite networks.
 
-The objective of this work is not to redesign QUIC internally, but to introduce a learning-based control mechanism that adapts transmission behavior under highly dynamic network conditions caused by satellite mobility.
+Rather than modifying QUIC internals, this work introduces a learning-based control mechanism that dynamically adjusts the QUIC pacing rate in response to time-varying network conditions caused by satellite mobility.
 
-The system integrates a discrete-event network simulator (OMNeT++) with a Python-based RL agent using a lightweight PyBind11 interface, enabling closed-loop adaptive control of QUIC pacing.
+The system integrates a C++-based discrete-event simulator (OMNeT++) with a Python-based RL agent using PyBind11, enabling real-time adaptive control.
 
 ---
 
 ## Key Idea
 
-LEO satellite networks introduce:
+LEO satellite networks exhibit:
 
-- Rapid delay variation (due to satellite movement)
+- Time-varying delay (RTT fluctuations)
 - Frequent handovers (~15 seconds)
-- Non-congestion-related packet loss
+- Mobility-induced packet loss (not congestion)
 
-Traditional congestion control algorithms (Reno, CUBIC, BBR) interpret these effects incorrectly as congestion.
+Traditional congestion control algorithms misinterpret these effects as congestion.
 
 This work proposes:
 
-> A reinforcement learning-based control framework that adjusts QUIC pacing dynamically based on observed network conditions.
+> A reinforcement learning-based control framework that adapts QUIC pacing based on observed network conditions.
 
 ---
 
 ## System Architecture
 
-The system consists of three main components:
+The system consists of three components:
 
 ### 1. Simulation Layer (C++ / OMNeT++)
+- LEO satellite network modeled using FloRaSat
+- QUIC protocol execution
+- State extraction (RTT, throughput, packet loss)
 
-- Implements LEO satellite network using FloRaSat
-- Handles QUIC protocol execution
-- Extracts network state (RTT, throughput, loss)
-
-📂 Code location: `cpp_interface/`
+`cpp_interface/`
 
 ---
 
 ### 2. RL Agent (Python / PyTorch)
+- PPO-based reinforcement learning agent
+- Maps network state → control action
 
-- Implements PPO-based reinforcement learning agent
-- Observes network state
-- Outputs pacing control decisions
-
-📂 Code location: `python_agent/`
+`python_agent/`
 
 ---
 
 ### 3. Integration Layer (PyBind11)
+- Efficient C++ ↔ Python communication
+- Low overhead, in-process execution
 
-- Connects C++ simulator with Python agent
-- Enables real-time state-action exchange
-
-📂 Code location: `cpp_interface/`
+ `cpp_interface/`
 
 ---
 
 ## Control Loop
 
-The system operates as a closed-loop controller:
+At each control interval (100 ms):
 
-1. OMNeT++ simulation runs QUIC
-2. Network state is extracted every 100 ms
-3. State is passed to RL agent via PyBind11
-4. RL agent outputs action
-5. Action modifies QUIC pacing rate
+1. Simulator extracts network state  
+2. State is passed to RL agent  
+3. RL agent outputs action  
+4. Action adjusts QUIC pacing rate  
 
 ---
 
 ## RL Design
 
-### State Representation
+### State
 
-The RL agent observes:
+- RTT  
+- Throughput  
+- Packet Loss  
 
-- RTT (Round Trip Time)
-- Throughput
-- Packet Loss
-
-These values are normalized to ensure stable learning.
+State values are normalized based on empirical bounds.
 
 ---
 
 ### Action Space
 
-Discrete multiplicative pacing adjustments:
+Discrete multiplicative adjustments:
 
 - −20%
 - −10%
@@ -96,161 +88,147 @@ Discrete multiplicative pacing adjustments:
 - +10%
 - +20%
 
+---
 
 ### Control Equation
 
-
 pacing_new = pacing_old × (1 + action)
 
+---
 
 ### Reward Function
 
-
-
 r = Throughput / (RTT + 0.5 × Loss)
 
-
-This encourages:
-
-- High throughput
-- Low delay
-- Low packet loss
+This balances efficiency and stability.
 
 ---
 
 ## Training Configuration
 
-- Episode duration: 60 seconds
-- Control interval: 100 ms
-- Steps per episode: ~600
-- Number of episodes: 50
-- Total steps: ~30,000
+- Episode duration: 60 seconds  
+- Control interval: 100 ms  
+- Steps per episode: ~600  
+- Episodes: 50  
+- Total steps: ~30,000  
 
-Training follows an episodic PPO framework.
+Training is performed offline using an episodic PPO framework.  
+The trained policy is later deployed during simulation.
 
 ---
 
 ## Dataset Usage
 
-This work uses two real-world datasets to ensure realistic simulation conditions.
+This work uses real-world Starlink measurements to ensure realistic behavior.
 
 ### 1. Starlink One-Way Delay Dataset
-
-https://zenodo.org/records/16275284
+https://zenodo.org/records/16275284  
 
 Used for:
-
-- Extracting realistic delay characteristics
-- Understanding uplink/downlink latency behavior
-- Modeling time-varying delay patterns
+- Delay distribution modeling  
+- Uplink / downlink latency characteristics  
 
 ---
 
 ### 2. WetLinks Dataset
-
-https://github.com/sys-uos/WetLinks
+https://github.com/sys-uos/WetLinks  
 
 Used for:
-
-- Calibrating RTT range (~60–80 ms)
-- Packet loss (~0.3–0.4%)
-- Throughput variability
-- Weather-related performance impact
+- RTT calibration (~60–80 ms)  
+- Packet loss (~0.3–0.4%)  
+- Throughput variability  
+- Weather-induced performance variation  
 
 ---
 
 ### Important Note
 
-The datasets are not directly replayed.
-
-Instead, statistical properties are extracted and used to:
-
-- Configure simulation parameters
-- Build realistic network dynamics
+Datasets are not replayed directly.  
+Instead, statistical properties are extracted and used to configure simulation parameters.
 
 ---
 
 ## Simulation Setup
 
-- 10 satellites
-- 20 ground stations
-- Satellite altitude: 550 km
-- Orbital inclination: 53°
-- Routing: DSDV
-- Handover interval: ~15 seconds
+- 10 satellites  
+- 20 ground stations  
+- Altitude: 550 km  
+- Inclination: 53°  
+- Routing: DSDV  
+- Handover interval: ~15 seconds  
 
 Traffic:
 
-- Variable bitrate (3 Mbps)
-- Continuous and burst workloads
+- Variable bitrate (3 Mbps)  
+- Continuous and burst workloads  
+
+Experiments are conducted in a **single-flow scenario** to isolate congestion control behavior.
 
 ---
 
 ## Baseline Comparison
 
-The RL-based QUIC controller is compared against:
+The RL-based controller is compared against:
 
-- QUIC + Reno
-- QUIC + CUBIC
-- QUIC + BBR
+- QUIC + Reno  
+- QUIC + CUBIC  
+- QUIC + BBR  
 
-BBR is identified as the strongest deterministic baseline.
+BBR serves as the strongest deterministic baseline.
 
 ---
 
 ## Results Summary
 
-The RL-based approach demonstrates:
+The RL-based controller demonstrates:
 
-- Smoother pacing behavior
-- Reduced overreaction to delay spikes
-- Faster recovery after handovers
-- Better adaptation to non-stationary conditions
+- Smoother pacing behavior  
+- Reduced overreaction to delay spikes  
+- Faster recovery after handovers  
+- Improved adaptation to non-stationary conditions  
 
 ---
 
 ## Repository Structure
 
-```
-
-cpp_interface/     → QUIC integration + PyBind11 interface
-python_agent/      → RL model (PPO implementation)
-examples/          → Example usage and test scripts
-docs/              → Additional documentation
-
-```
+cpp_interface/     → QUIC integration + PyBind11 interface  
+python_agent/      → RL training and inference  
+examples/          → usage examples  
+docs/              → documentation  
 
 ---
 
-## Reproducibility
+## How to Run (Reproducibility)
 
-For reproducibility purposes, the complete code is available in this repository.
+### 1. Simulation Environment
 
-### Environment Requirements
+Install:
 
-#### Simulation
+- OMNeT++ 6.x  
+- INET 4.3–4.5  
+- FloRaSat  
 
-- OMNeT++ 6.x
-- INET 4.3 – 4.5
-- FloRaSat extension
+---
 
-#### Python
-
-Install dependencies:
-
-```
+### 2. Python Environment
 
 pip install -r requirements.txt
 
-```
+---
+
+### 3. Training
+
+Run RL training:
+
+python python_agent/train.py
 
 ---
 
-## Important Notes
+### 4. Simulation Execution
 
-- RL controls only QUIC pacing rate
-- Core QUIC mechanisms (ACK, retransmission, cwnd) remain unchanged
-- Single-flow scenario is used for controlled evaluation
+- Build OMNeT++ project  
+- Enable RL interface  
+- Run simulation  
 
 ---
 
@@ -258,9 +236,9 @@ pip install -r requirements.txt
 
 This work contributes:
 
-- A system-level integration of RL with QUIC
-- A practical control-loop design using PyBind11
-- An evaluation of learning-based congestion control in LEO environments
+- A learning-based congestion control framework for QUIC  
+- A PyBind11-based integration between simulation and RL  
+- A system-level evaluation under realistic LEO conditions  
 
 The contribution focuses on adaptive behavior rather than protocol redesign.
 
@@ -268,23 +246,22 @@ The contribution focuses on adaptive behavior rather than protocol redesign.
 
 ## Limitations
 
-- Simulation-based evaluation
-- Single-flow scenario
-- No real deployment validation
+- Simulation-based evaluation  
+- Single-flow scenario  
+- No real deployment  
 
 ---
 
 ## Future Work
 
-- Multi-flow congestion control
-- Real-world deployment
-- Distributed RL approaches
+- Multi-flow scenarios  
+- Real-world deployment  
+- Distributed RL  
 
 ---
 
 ## Summary
 
-This repository demonstrates a practical and reproducible framework for integrating reinforcement learning into QUIC congestion control under LEO satellite conditions.
+This repository provides a reproducible framework for integrating reinforcement learning with QUIC congestion control in LEO satellite networks.
 
-The approach highlights how adaptive control can improve performance in highly dynamic network environments.
-
+It demonstrates how adaptive control improves performance under dynamic conditions.
