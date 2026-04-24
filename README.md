@@ -1,233 +1,228 @@
+RL-Based QUIC Congestion Control in LEO Satellite Networks
+Overview
 
+This repository contains the implementation and evaluation framework for a reinforcement learning-based congestion control mechanism integrated with QUIC in Low Earth Orbit (LEO) satellite networks.
 
-#  RL-Based QUIC Congestion Control in LEO Satellite Networks
+The objective of this work is not to propose a new transport protocol, but to investigate whether a learning-based control layer can improve QUIC performance under highly dynamic network conditions typical of LEO systems, such as time-varying delay, satellite handovers, and transient packet loss.
 
-## Overview
+The contribution is positioned as a system-level evaluation of RL-based adaptive control applied to QUIC pacing behavior.
 
-This project presents a simulation-based study on improving QUIC congestion control using reinforcement learning (RL) in Low Earth Orbit (LEO) satellite networks. The work focuses on designing an adaptive control mechanism capable of responding to highly dynamic network conditions caused by satellite mobility and frequent topology changes.
+System Architecture
 
-The system combines a C++-based network simulation environment with a Python-based RL agent, enabling a hybrid architecture where protocol execution and decision-making are decoupled.
+The system follows a hybrid architecture composed of three interacting layers:
 
----
+Simulation Layer (C++ / OMNeT++)
 
-## System Architecture
+Implements:
 
-The system is structured into three main components:
+QUIC transport protocol execution
+Satellite network topology (LEO constellation)
+Dynamic link models (delay, loss)
+Runtime extraction of network metrics
+RL Agent (Python – PPO)
 
-* **C++ Simulation Layer (OMNeT++)**
-  Handles network modeling, packet transmission, and QUIC protocol behavior.
+The reinforcement learning agent:
 
-* **Python RL Agent**
-  Implements a reinforcement learning model that observes network conditions and outputs control decisions.
+Observes aggregated network state
+Learns adaptive control policy
+Outputs continuous pacing adjustment
 
-* **Integration Layer (PyBind11)**
-  Enables efficient interaction between the simulation and the RL agent through a lightweight C++–Python binding interface.
+The policy is implemented using a neural network trained with Proximal Policy Optimization (PPO).
 
----
+Integration Layer (PyBind11)
 
-## Control Loop Architecture
+The interaction between simulation and RL agent is implemented via PyBind11:
 
-```
-+-----------------------------------------------------+
-|                 OMNeT++ Simulation (C++)             |
-|                                                     |
-|   QUIC Protocol Execution                           |
-|   Network State Extraction                          |
-|   (RTT, Throughput, Loss)                           |
-|                                                     |
-+----------------------|------------------------------+
-                       |
-                       |  (State via PyBind11)
-                       ↓
-+-----------------------------------------------------+
-|              Python RL Agent (PPO Model)             |
-|                                                     |
-|   Input: Network State                              |
-|   Policy Network (Neural Model)                     |
-|   Output: Action (Pacing Adjustment Factor)         |
-|                                                     |
-+----------------------|------------------------------+
-                       |
-                       |  (Action via PyBind11)
-                       ↓
-+-----------------------------------------------------+
-|             QUIC Congestion Control Layer           |
-|                                                     |
-|   Apply Action → Adjust Pacing Rate                 |
-|                                                     |
-+-----------------------------------------------------+
+In-process communication
+No serialization overhead
+Low-latency control exchange
 
-          Closed-loop control (per control interval)
-```
+This ensures feasibility within simulation time constraints.
 
-### Control Loop Explanation
+Control Mechanism
 
-The system operates as a closed-loop control mechanism during simulation runtime. At each control interval, the simulator extracts network state parameters and passes them to the RL agent via the PyBind11 interface. The agent computes a pacing rate adjustment, which is applied back to the QUIC congestion control logic.
+The system operates as a periodic closed-loop controller:
 
-This design enables adaptive decision-making without modifying the internal protocol structure, ensuring modularity and experimental flexibility.
+Control interval: 100 ms
+State extracted from QUIC layer:
+RTT
+Throughput
+Packet loss
 
----
+The RL agent outputs a bounded continuous action:
 
-## Motivation
+a
+t
+	​
 
-Traditional congestion control algorithms (e.g., BBR) rely on fixed heuristics and may struggle to adapt to highly dynamic environments such as LEO satellite networks.
+∈[−α,α]
 
-Frequent handovers and fluctuating delays require adaptive mechanisms capable of responding to non-stationary conditions. Reinforcement learning provides a framework for learning such adaptive behavior directly from observed network dynamics.
+which is applied as:
 
----
+pacing
+new
+	​
 
-## Design Rationale
+=pacing
+old
+	​
 
-The system is intentionally designed to operate at the control level rather than per-packet level. This reduces computational overhead and ensures compatibility with reinforcement learning inference constraints.
+⋅(1+a
+t
+	​
 
-A compact state representation is used to balance model expressiveness and stability. The objective is not to fully model the network, but to provide sufficient information for adaptive decision-making under dynamic conditions.
+)
+Important Design Choice
 
----
+The RL agent controls only the QUIC pacing rate, while:
 
-## Technical Approach
+congestion window (cwnd) → handled by QUIC
+retransmissions → handled by QUIC
+ACK processing → unchanged
 
-* **Reinforcement Learning Algorithm:** Proximal Policy Optimization (PPO)
+This ensures:
 
-* **State Representation:**
+✔ protocol stability
+✔ compatibility with QUIC design
+✔ safe integration
 
-  * RTT
-  * Packet loss
-  * Throughput
+Reinforcement Learning Setup
+State Representation
 
-* **Action:**
+The state consists of aggregated values over each control interval:
 
-  * Continuous pacing rate adjustment (multiplicative factor)
+RTT (ms)
+Throughput (Mbps)
+Packet loss (%)
 
-* **Reward Function:**
+These values are normalized based on empirically observed bounds to ensure stable training.
 
-[
-r_t = \frac{\text{Throughput}_t}{\text{RTT}_t + 0.5 \times \text{Loss}_t}
-]
+Reward Function
+r
+t
+	​
 
-This formulation promotes efficient data delivery while penalizing delay and packet loss.
+=
+RTT
+t
+	​
 
----
++0.5⋅Loss
+t
+	​
 
-## Integration Strategy
++ϵ
+Throughput
+t
+	​
 
-The interaction between the simulation (C++) and the RL agent (Python) is achieved using PyBind11.
+	​
 
-Key characteristics:
 
-* Direct in-process communication (no sockets or file exchange)
-* Memory-efficient data transfer without serialization overhead
-* Compatible with standard Python machine learning frameworks
+This formulation encourages:
 
-The integration operates at the control level, avoiding per-packet overhead and ensuring low-latency interaction suitable for simulation-time decision making.
+high throughput
+low latency
+low packet loss
+Training Configuration
+Episode duration: 60 seconds
+Control interval: 100 ms
+Steps per episode: 600
+Total episodes: 50
+Total interaction steps: ~30,000
 
----
+Training is performed in an episodic PPO framework, where policy updates occur after each episode.
 
-## Relation to Existing Work
+Real-World Data Integration
 
-Recent work such as LeoCC proposes model-based congestion control mechanisms that explicitly detect network reconfiguration events in LEO satellite environments.
+The simulation environment is parameterized using real-world measurements:
 
-In contrast, this work explores whether reinforcement learning can implicitly learn adaptive behavior from observed network conditions without requiring explicit modeling of reconfiguration events.
+Datasets used:
+Starlink OWD dataset (Garcia et al., 2025)
+WetLinks dataset (TMA 2024)
+Mapping to Simulation
 
----
+The datasets are not replayed directly. Instead, they are used to extract statistical characteristics:
 
-## Experimental Context
+RTT baseline: 40–80 ms
+RTT spikes: 80–120 ms
+Packet loss: 0.5% – 2.5%
+Throughput variability patterns
 
-The evaluation is conducted in a simulated LEO satellite environment with:
+These are incorporated into OMNeT++ / FloRaSat models to emulate:
 
-* Multi-satellite topology
-* Dynamic link conditions
-* End-to-end communication between ground stations
+satellite handovers (delay spikes)
+link degradation (loss bursts)
+time-varying channel conditions
+Simulation Setup
 
-The simulation parameters are configured to reflect realistic delay variations and dynamic behavior observed in LEO satellite networks.
+The evaluation is conducted using:
 
-The RL-based approach is compared against a deterministic baseline (QUIC with BBR congestion control).
+OMNeT++ with FloRaSat extension
+LEO satellite topology (multi-node)
+Single end-to-end QUIC flow
+Dynamic delay and packet loss models
+Scenario Characteristics
+Satellite mobility → induces delay variation
+Handover events → modeled as RTT spikes
+Packet loss → time-varying stochastic model
+Baseline Comparison
 
----
+The RL-based approach is compared against:
 
-## Observations
+QUIC with BBR congestion control
 
-The RL-based controller shows consistent adaptive behavior under dynamic conditions.
+Default BBR configuration is used without tuning.
 
-* It avoids overly aggressive rate reduction during transient delay increases
-* It demonstrates smoother pacing adjustments compared to heuristic-based approaches
-* It adapts more effectively during topology transitions such as handovers
+Experimental Observations
 
-The improvements are more pronounced in non-stationary conditions rather than steady-state operation.
+The RL-based controller shows:
 
----
+smoother pacing adjustments under delay variation
+reduced RTT spikes during transient events
+improved throughput stability
+faster recovery after handover events
 
-## Benchmark Perspective
+The improvements are most visible in non-stationary conditions, rather than steady-state operation.
 
-The integration overhead introduced by PyBind11 is minimal compared to the overall simulation cost.
+Reproducibility
 
-The dominant factors affecting system performance are:
+To ensure reproducibility:
 
-* RL model inference latency
-* Simulation time-step resolution
-* Network dynamics
+Simulation configuration is provided
+RL training setup is documented
+Example scripts are included
 
-This indicates that the chosen integration approach is not a performance bottleneck.
+For reproducibility purposes, the complete code of this work is publicly available:
 
----
+👉 https://github.com/Aiswarya12-gpu/rl-quic-leo
 
-## Practical Considerations
+Repository Structure
+cpp_interface/   → QUIC + simulation integration  
+python_agent/    → RL model and training logic  
+examples/        → execution scenarios  
+docs/            → documentation  
+Scientific Contribution
 
-* The control loop operates at fixed intervals, not per packet
-* The state representation is intentionally compact
-* The RL model is designed to maintain low inference latency
+This work contributes:
 
-These design choices ensure feasibility within simulation constraints.
+A learning-based control framework integrated with QUIC pacing
+A hybrid simulation-learning architecture
+A reproducible evaluation under LEO-like dynamics
+Empirical analysis of RL vs BBR behavior
 
----
+The contribution lies in system design and evaluation, not protocol redesign.
 
-## Limitations
+Limitations
+Simulation-based evaluation
+Single-flow scenario
+No real deployment
+Synchronous RL interaction
+Future Work
+Multi-flow congestion scenarios
+larger LEO constellations
+real-world deployment
+distributed RL
+Summary
 
-The study is conducted within a simulation environment and does not include real-world deployment validation.
-
-The interaction between C++ and Python follows a synchronous execution model, which may introduce constraints for scaling to more complex systems.
-
-The current evaluation focuses on a single-agent scenario and does not explore distributed or multi-agent learning settings.
-
-These limitations are consistent with the scope of a simulation-based study and provide direction for future work.
-
----
-
-## Scientific Contribution
-
-This work contributes to the study of adaptive congestion control in LEO satellite networks through:
-
-* A system-level design integrating reinforcement learning with transport protocol simulation
-* A PyBind11-based interface enabling efficient interaction between C++ simulation and Python learning models
-* An evaluation of learning-based adaptive behavior under dynamic network conditions
-
-The contribution is positioned at the system and methodology level, focusing on integration and adaptive control rather than low-level protocol modification.
-
----
-
-## Future Work
-
-Potential directions include:
-
-* Extending the state representation with additional network features (e.g., delay variation)
-* Evaluating performance in larger-scale satellite constellations
-* Exploring asynchronous or distributed RL approaches
-* Investigating feasibility in real-world or emulated environments
-
----
-
-## Repository Structure
-
-```
-cpp_interface/    → C++ simulation and integration layer  
-python_agent/     → RL model implementation  
-docs/             → system documentation  
-examples/         → demonstration scripts  
-```
-
----
-
-## Summary
-
-This project demonstrates a practical and structured approach to integrating reinforcement learning with transport protocol simulation. The design enables adaptive congestion control behavior in dynamic satellite environments while maintaining manageable system complexity and experimental flexibility.
-
-
+This work demonstrates that reinforcement learning can act as an adaptive control layer over QUIC, enabling improved performance under dynamic LEO network conditions while preserving protocol stability.
